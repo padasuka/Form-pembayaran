@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Form Pengukuran Tanah Warga Kahuripan</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: #fff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
+    }
+    th {
+      background: #3498db;
+      color: white;
+    }
+    input, select {
+      width: 100%;
+      padding: 5px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      /* Pastikan warna latar belakang default input adalah putih */
+      background-color: white; 
+      color: black;
+      font-weight: normal;
+    }
+    /* Menandai input yang kosong atau bernilai 0 */
+    input.warning {
+      background-color: #fff8b3; 
+    }
+    th:nth-child(2), td:nth-child(2) {
+      min-width: 200px;
+    }
+    th:nth-child(6), td:nth-child(6) {
+      min-width: 300px;
+    }
+    /* Warna untuk status Persyaratan */
+    select.sudah {
+      background-color: #2ecc71;
+      color: white;
+      font-weight: bold;
+    }
+    select.belum {
+      background-color: #f1c40f;
+      color: black;
+      font-weight: bold;
+    }
+    /* --- STYLE KETERANGAN DIPERBARUI --- */
+    input.keterangan-sudah {
+      background-color: #2ecc71; /* Hijau untuk 'Sudah terdaftar' */
+      color: white;
+      font-weight: bold;
+    }
+    input.keterangan-belum {
+      background-color: #f1c40f; /* Kuning untuk 'Belum terdaftar' */
+      color: black;
+      font-weight: bold;
+    }
+    /* --- AKHIR STYLE KETERANGAN DIPERBARUI --- */
+
+    .actions {
+      margin-top: 20px;
+      text-align: center;
+    }
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      border: none;
+      background: #2ecc71;
+      color: white;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #27ae60;
+    }
+    /* Warna berbeda untuk tombol ekspor dan hapus */
+    #exportCsv {
+        background: #f39c12; 
+    }
+    #exportCsv:hover {
+        background: #e67e22; 
+    }
+    #clearStorage {
+        background: #e74c3c;
+    }
+    #clearStorage:hover {
+        background: #c0392b;
+    }
+    #totals {
+      margin-top: 10px;
+      text-align: right;
+      font-weight: bold;
+    }
+    /* Style untuk pesan konfirmasi penyimpanan */
+    #saveStatus {
+        margin-top: 10px;
+        padding: 5px;
+        text-align: center;
+        font-weight: bold;
+    }
+
+    @media print {
+      .actions, button, #saveStatus {
+        display: none !important;
+      }
+      select.sudah, select.belum, input.keterangan-sudah, input.keterangan-belum {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      select.sudah, input.keterangan-sudah {
+        background-color: #2ecc71 !important;
+        color: white !important;
+      }
+      select.belum, input.keterangan-belum {
+        background-color: #f1c40f !important;
+        color: black !important;
+      }
+      input.warning {
+        background-color: #fff8b3 !important;
+      }
+      th, td {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h2>Form Pengukuran Tanah Warga Kahuripan</h2>
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>Nama</th>
+        <th>Persyaratan</th>
+        <th>Pembayaran</th>
+        <th>Kontribusi Induk</th>
+        <th>Keterangan</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div id="totals">
+    Total Pembayaran: Rp <span id="totalPembayaran">0</span> |
+    Total Kontribusi Induk: Rp <span id="totalKontribusi">0</span>
+  </div>
+
+  <div class="actions">
+    <button onclick="addRow()">Tambah Baris</button>
+    <button onclick="saveData()">Simpan Perubahan</button>
+    <button id="exportCsv" onclick="exportDataToCSV()">Ekspor ke CSV</button>
+   
+
+
+    
+
+<button onclick="window.print()">Cetak PDF</button>
+  </div>
+  <div id="saveStatus"></div>
+
+  <script>
+    const tableBody = document.querySelector("#dataTable tbody");
+    const saveStatusElement = document.getElementById("saveStatus");
+
+    // --- FUNGSI NOTIFIKASI ---
+    function showSaveStatus(message, isError = false) {
+        saveStatusElement.textContent = message;
+        saveStatusElement.style.color = isError ? '#e74c3c' : '#2ecc71';
+        clearTimeout(window.saveStatusTimeout);
+        window.saveStatusTimeout = setTimeout(() => {
+            saveStatusElement.textContent = '';
+        }, 3000);
+    }
+    
+    // --- FUNGSI UTAMA WARNA KETERANGAN DENGAN FRASA SPESIFIK ---
+    function updateKeteranganColors() {
+      tableBody.querySelectorAll("tr").forEach(row => {
+        const keteranganInput = row.querySelector("td:nth-child(6) input");
+        const value = keteranganInput.value.trim().toLowerCase();
+        
+        // Bersihkan semua kelas warna sebelumnya
+        keteranganInput.classList.remove("keterangan-sudah", "keterangan-belum");
+        
+        if (value === "sudah terdaftar") {
+          keteranganInput.classList.add("keterangan-sudah"); // HIJAU
+        } else if (value === "belum terdaftar") {
+          keteranganInput.classList.add("keterangan-belum"); // KUNING
+        } 
+        // Teks lain (seperti "Susulan") atau kosong akan kembali ke warna default (putih/normal)
+      });
+    }
+    
+    // --- Fungsi-Fungsi Dasar Tabel (Tidak Berubah Signifikan) ---
+
+    function updateRowNumbers() {
+      tableBody.querySelectorAll("tr").forEach((row, i) => {
+        const cell = row.querySelector(".row-number");
+        if (cell) cell.textContent = i + 1;
+      });
+    }
+
+    function highlightEmptyFields() {
+      tableBody.querySelectorAll("tr").forEach(row => {
+        const bayar = row.querySelector("td:nth-child(4) input");
+        const kontribusi = row.querySelector("td:nth-child(5) input");
+        bayar.classList.toggle("warning", bayar.value.trim() === "" || parseInt(bayar.value) === 0);
+        kontribusi.classList.toggle("warning", kontribusi.value.trim() === "" || parseInt(kontribusi.value) === 0);
+      });
+    }
+
+    function updateTotals() {
+      let totalBayar = 0, totalKontribusi = 0;
+      tableBody.querySelectorAll("tr").forEach(row => {
+        const bayar = parseInt(row.querySelector("td:nth-child(4) input").value) || 0;
+        const kontribusi = parseInt(row.querySelector("td:nth-child(5) input").value) || 0;
+        totalBayar += bayar;
+        totalKontribusi += kontribusi;
+      });
+      document.getElementById("totalPembayaran").textContent = totalBayar.toLocaleString("id-ID");
+      document.getElementById("totalKontribusi").textContent = totalKontribusi.toLocaleString("id-ID");
+    }
+
+    function addRow(nama = "", persyaratan = "Sudah", pembayaran = 0, kontribusi = 0, keterangan = "") {
+      const row = document.createElement("tr");
+      const formattedPembayaran = pembayaran === 0 ? "" : pembayaran;
+      const formattedKontribusi = kontribusi === 0 ? "" : kontribusi;
+
+      row.innerHTML = `
+        <td><span class="row-number"></span></td>
+        <td><input type="text" value="${nama}"></td>
+        <td>
+          <select>
+            <option value="Sudah" ${persyaratan === "Sudah" ? "selected" : ""}>Sudah</option>
+            <option value="Belum" ${persyaratan === "Belum" ? "selected" : ""}>Belum</option>
+          </select>
+        </td>
+        <td><input type="number" value="${formattedPembayaran}"></td>
+        <td><input type="number" value="${formattedKontribusi}"></td>
+        <td><input type="text" value="${keterangan}"></td>
+        <td><button onclick="deleteRow(this)">Hapus</button></td>
+      `;
+      tableBody.appendChild(row);
+      updateRowNumbers();
+      updateSelectColors();
+      updateKeteranganColors(); // Panggil fungsi warna Keterangan
+      enableAutoSave();
+      highlightEmptyFields();
+      updateTotals();
+    }
+
+    function deleteRow(btn) {
+      btn.closest("tr").remove();
+      updateRowNumbers();
+      saveData();
+      highlightEmptyFields();
+      updateTotals();
+    }
+
+    function updateSelectColors() {
+      tableBody.querySelectorAll("select").forEach(select => {
+        select.classList.remove("sudah", "belum");
+        select.classList.add(select.value === "Sudah" ? "sudah" : "belum");
+        select.onchange = () => {
+          updateSelectColors();
+          saveData();
+        };
+      });
+    }
+
+    function enableAutoSave() {
+      tableBody.querySelectorAll("input, select").forEach(el => {
+        el.oninput = () => {
+          saveData();
+          highlightEmptyFields();
+          updateTotals();
+          
+          // Khusus untuk input Keterangan (kolom ke-6)
+          if (el.closest("td:nth-child(6)")) {
+              updateKeteranganColors(); 
+          }
+        };
+        el.onchange = () => {
+          saveData();
+          highlightEmptyFields();
+          updateTotals();
+          updateSelectColors();
+          updateKeteranganColors();
+        };
+      });
+    }
+    
+    // --- Fungsi Penyimpanan (LocalStorage) ---
+
+    function saveData() {
+      try {
+        const data = [];
+        tableBody.querySelectorAll("tr").forEach(row => {
+          const inputs = row.querySelectorAll("input, select");
+          data.push({
+            nama: inputs[0].value,
+            persyaratan: inputs[1].value,
+            pembayaran: inputs[2].value,
+            kontribusi: inputs[3].value,
+            keterangan: inputs[4].value
+          });
+        });
+        localStorage.setItem("pengukuranData", JSON.stringify(data));
+        showSaveStatus("✅ Data berhasil disimpan.");
+      } catch (e) {
+        showSaveStatus("❌ GAGAL SIMPAN! Data mungkin tidak tersimpan. Coba ekspor ke CSV!", true);
+      }
+    }
+
+    // --- Fungsi Hapus Local Storage dan Ekspor CSV ---
+
+    function clearStorage() {
+        if (confirm("PERINGATAN! Tindakan ini akan menghapus SEMUA DATA yang tersimpan di browser untuk aplikasi ini. Anda yakin ingin melanjutkan?")) {
+            localStorage.removeItem("pengukuranData");
+            alert("Data tersimpan telah dihapus. Halaman akan dimuat ulang dengan data awal.");
+            window.location.reload();
+        }
+    }
+    
+    function exportDataToCSV() {
+      const data = JSON.parse(localStorage.getItem("pengukuranData"));
+      if (!data || data.length === 0) {
+        alert("Tidak ada data untuk diekspor!");
+        return;
+      }
+      const headers = ["No", "Nama", "Persyaratan", "Pembayaran", "Kontribusi Induk", "Keterangan"];
+      let csvContent = headers.join(";") + "\n"; 
+      data.forEach((item, index) => {
+        const row = [
+          index + 1,
+          `"${item.nama.replace(/"/g, '""')}"`, 
+          item.persyaratan,
+          item.pembayaran,
+          item.kontribusi,
+          `"${item.keterangan.replace(/"/g, '""')}"`
+        ];
+        csvContent += row.join(";") + "\n";
+      });
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", "Data_Pengukuran_Kahuripan_" + new Date().toISOString().slice(0, 10) + ".csv");
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    
+    // --- Fungsi Memuat Data (LoadData) ---
+
+    function loadData() {
+      const saved = localStorage.getItem("pengukuranData");
+      if (saved) {
+        try {
+            JSON.parse(saved).forEach(item => {
+                addRow(
+                    item.nama,
+                    item.persyaratan,
+                    parseInt(item.pembayaran) || 0,
+                    parseInt(item.kontribusi) || 0,
+                    item.keterangan || ""
+                );
+            });
+        } catch (e) {
+            alert("Terdeteksi data tersimpan rusak! Memuat data awal.");
+            localStorage.removeItem("pengukuranData"); 
+            loadInitialData();
+        }
+      } else {
+        loadInitialData();
+      }
+    }
+
+    function loadInitialData() {
+        const initialData = [
+          { nama: "Atin Supriatin", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "Sudah terdaftar" },
+          { nama: "Nuryanti", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "Susulan" },
+          { nama: "Jariyah A", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Eni Rohaeni", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Asep Rahmat Septian", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Enny Erawati", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Irma Rahmawati", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Ahdiat Safaat", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Yuyun Yulia Tingsih", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Jeanny Rosiani Rachman", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Oky Rachmatulloh", persyaratan: "Sudah", pembayaran: 0, kontribusi: 0, keterangan: "" }, 
+          { nama: "Wahab Rambe", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Ahmad Taufik Muchtadin", persyaratan: "Sudah", pembayaran: 0, kontribusi: 25000, keterangan: "" }, 
+          { nama: "Sukirman", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Tati Sopiah", persyaratan: "Sudah", pembayaran: 0, kontribusi: 25000, keterangan: "" }, 
+          { nama: "Pendi Suhaendi", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Yudi Wahyudi", persyaratan: "Sudah", pembayaran: 0, kontribusi: 25000, keterangan: "" }, 
+          { nama: "Deni budiman", persyaratan: "Sudah", pembayaran: 500000, kontribusi: 25000, keterangan: "" },
+          { nama: "Eko FW", persyaratan: "Belum", pembayaran: 0, kontribusi: 0, keterangan: "Belum terdaftar" }, 
+          { nama: "Rohana F", persyaratan: "Belum", pembayaran: 500000, kontribusi: 25000, keterangan: "Belum terdaftar" }, 
+          { nama: "Ratna Dianti", persyaratan: "Belum", pembayaran: 500000, kontribusi: 0, keterangan: "Belum terdaftar" }, 
+        ];
+        // Mengubah data awal agar sesuai dengan frasa baru "Sudah terdaftar"
+        initialData.forEach(item => {
+          addRow(item.nama, item.persyaratan, item.pembayaran, item.kontribusi, item.keterangan);
+        });
+    }
+    
+    // Inisialisasi Saat Halaman Dimuat
+    window.onload = () => {
+      loadData();
+      updateRowNumbers();
+      updateSelectColors();
+      updateKeteranganColors(); 
+      enableAutoSave();
+      highlightEmptyFields();
+      updateTotals();
+    };
+  </script>
+</body>
+</html>
